@@ -157,19 +157,21 @@ def train_full_batch(
         theta_g = theta.detach().requires_grad_(True)
         _l = loss_fn(theta_g, X, y, shapes)
         (grad,) = torch.autograd.grad(_l, theta_g)
-        with torch.no_grad():
-            theta = theta - lr * grad
         lv = float(_l.detach())
         losses.append(lv)
         if not np.isfinite(lv) or lv > cfg.diverge_threshold:
             diverged_at = step
             break
         if step % sharpness_every == 0:
+            # probe at the SAME theta the recorded loss was computed at
+            # (pre-update), so loss[i] and sharp[i] describe one point
             ev = top_hessian_eigs(
                 theta, X, y, shapes, k=track_k, iters=cfg.power_iters, seed=cfg.seed
             )
             sharp_steps.append(step)
             sharp_vals.append(ev.detach().cpu().numpy())
+        with torch.no_grad():
+            theta = theta - lr * grad
     return {
         "loss": np.array(losses),
         "sharp_steps": np.array(sharp_steps),
@@ -227,7 +229,7 @@ def train_minibatch_ensemble(
     dev = pick_device(device) if not isinstance(device, torch.device) else device
     X, y, theta0, shapes = make_problem(cfg, dev)
     threshold = 2.0 / lr
-    ride_ceiling = 3.0
+    ride_ceiling = 1.5
     display_cap = ride_ceiling * threshold
     runs, rode_flags = [], []
     for s in range(n_seeds):

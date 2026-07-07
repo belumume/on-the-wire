@@ -1,10 +1,16 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "matplotlib>=3.11.0",
+#     "numpy>=2.5.1",
+#     "torch>=2.12.1",
+# ]
+# ///
 import marimo
 
 __generated_with = "0.23.9"
 app = marimo.App(
     width="medium",
-    css_file="/usr/local/_marimo/custom.css",
-    auto_download=["html"],
 )
 
 
@@ -37,13 +43,12 @@ def imports():
 
     import numpy as np
     import torch
-    import matplotlib.pyplot as plt
     from matplotlib.figure import Figure
 
     return Figure, dataclasses, np, torch
 
 
-@app.cell
+@app.cell(hide_code=True)
 def engine(dataclasses, np, torch):
     # Edge-of-Stability engine: tiny MLP as a flat parameter vector, the
     # Hessian-vector-product power-iteration sharpness meter, full-batch GD,
@@ -171,19 +176,21 @@ def engine(dataclasses, np, torch):
             theta_g = theta.detach().requires_grad_(True)
             _l = loss_fn(theta_g, X, y, shapes)
             (grad,) = torch.autograd.grad(_l, theta_g)
-            with torch.no_grad():
-                theta = theta - lr * grad
             lv = float(_l.detach())
             losses.append(lv)
             if not np.isfinite(lv) or lv > cfg.diverge_threshold:
                 diverged_at = step
                 break
             if step % sharpness_every == 0:
+                # probe at the SAME theta the recorded loss was computed at
+                # (pre-update), so loss[i] and sharp[i] describe one point
                 ev = top_hessian_eigs(
                     theta, X, y, shapes, k=track_k, iters=cfg.power_iters, seed=cfg.seed
                 )
                 sharp_steps.append(step)
                 sharp_vals.append(ev.detach().cpu().numpy())
+            with torch.no_grad():
+                theta = theta - lr * grad
         return {
             "loss": np.array(losses),
             "sharp_steps": np.array(sharp_steps),
@@ -241,7 +248,7 @@ def engine(dataclasses, np, torch):
         dev = pick_device(device) if not isinstance(device, torch.device) else device
         X, y, theta0, shapes = make_problem(cfg, dev)
         threshold = 2.0 / lr
-        ride_ceiling = 3.0
+        ride_ceiling = 1.5
         display_cap = ride_ceiling * threshold
         runs, rode_flags = [], []
         for s in range(n_seeds):
@@ -297,31 +304,6 @@ def engine(dataclasses, np, torch):
             "lr": lr,
         }
 
-
-    def _smoke():
-        cfg = Config(steps=300)
-        dev = pick_device()
-        print("device:", dev)
-        # instrument check on the bowl
-        b = quadratic_bowl(lr=0.9 * 2 / 5.0, curvature=5.0)
-        print("bowl stable (expect True):", b["stable"], "final loss", b["loss"][-1])
-        b2 = quadratic_bowl(lr=1.1 * 2 / 5.0, curvature=5.0)
-        print(
-            "bowl above-threshold stable (expect False):",
-            b2["stable"],
-            "final loss",
-            b2["loss"][-1],
-        )
-        # edge of stability on the MLP
-        out = train_full_batch(cfg, lr=0.05, device=dev, track_k=1, sharpness_every=5)
-        if len(out["sharp"]):
-            final_sharp = out["sharp"][-1, 0]
-            print(
-                f"EoS: final sharpness {final_sharp:.2f} vs threshold {out['threshold']:.2f} "
-                f"(ratio {final_sharp / out['threshold']:.2f}, expect ~1)"
-            )
-        print("diverged_at:", out["diverged_at"], "final loss:", out["loss"][-1])
-
     return (
         Config,
         pick_device,
@@ -370,9 +352,22 @@ def bowl_ui(mo):
 
 @app.cell
 def bowl_display(Figure, WIRE_COLOR, bowl_lr, np, quadratic_bowl):
-    _b = quadratic_bowl(lr=float(bowl_lr.value), curvature=5.0, steps=60)
-    _figB = Figure(figsize=(12.5, 4.4))
-    _axL, _axR = _figB.subplots(1, 2)
+    _lr_b = float(bowl_lr.value)
+    _b = quadratic_bowl(lr=_lr_b, curvature=5.0, steps=60)
+    _figB = Figure(figsize=(13.5, 4.2))
+    _axG, _axL, _axR = _figB.subplots(1, 3)
+
+    # the wire, drawn: constant sharpness (= curvature) vs the moving 2/lr line
+    _steps_b = np.arange(len(_b["x"]))
+    _axG.plot(_steps_b, np.full_like(_steps_b, _b["sharpness"], dtype=float),
+              color="black", linewidth=2.2, label=f"sharpness = curvature = {_b['sharpness']:.0f}")
+    _axG.axhline(_b["threshold"], color=WIRE_COLOR, linewidth=2.4,
+                 label=f"the wire: 2/lr = {_b['threshold']:.2f}")
+    _axG.set_ylim(0, 14)
+    _axG.set_xlabel("step")
+    _axG.set_ylabel("eigenvalue")
+    _axG.set_title("the bowl's sharpness never moves")
+    _axG.legend(fontsize=8, loc="upper right")
 
     _axL.plot(_b["x"], color="steelblue", linewidth=1.8)
     _axL.axhline(0.0, color="gray", linewidth=0.8, linestyle=":")
@@ -383,16 +378,14 @@ def bowl_display(Figure, WIRE_COLOR, bowl_lr, np, quadratic_bowl):
     _axR.semilogy(np.clip(_b["loss"], 1e-16, None), color="steelblue", linewidth=1.8)
     _axR.set_xlabel("step")
     _axR.set_ylabel("loss (log scale)")
-    _verdict = "CONVERGES (below the wire)" if _b["stable"] else "DIVERGES (above the wire)"
-    _axR.set_title(f"lr = {float(bowl_lr.value):.2f} vs wire at {_b['threshold']:.3f}: {_verdict}")
+    if abs(_lr_b * _b["sharpness"] - 2.0) < 1e-9:
+        _verdict = "ON THE WIRE exactly (marginal: neither grows nor shrinks)"
+    elif _b["stable"]:
+        _verdict = "CONVERGES (below the wire)"
+    else:
+        _verdict = "DIVERGES (above the wire)"
+    _axR.set_title(f"lr = {_lr_b:.2f} vs wire at {_b['threshold']:.3f}\n{_verdict}", fontsize=10)
 
-    # the wire, as a gauge: where this lr sits relative to 2/c
-    _axL.axvline(0, alpha=0)  # keep axes stable across drags
-    _figB.suptitle(
-        f"sharpness (= curvature) {_b['sharpness']:.1f} | 2/lr = {2.0 / float(bowl_lr.value):.2f} "
-        + ("> sharpness: classical theory says converge" if _b["stable"] else "< sharpness: classical theory says diverge"),
-        fontsize=10, color=WIRE_COLOR,
-    )
     _figB.tight_layout()
     _figB
     return
@@ -525,10 +518,11 @@ def reveal_md(LR_GRID, lr_sweep, mlp_lr, mo, np, prediction):
         _pred_text,
         "",
     ]
-    if _run_now["diverged_at"] is not None:
+    if _run_now["diverged_at"] is not None or _ratio is None:
         _lines += [
-            f"At lr = {_lr_now:g} this network genuinely diverges (step {_run_now['diverged_at']}). "
-            "Drag the slider left into the 0.15-0.35 band to find the regime the paper is about: "
+            f"At lr = {_lr_now:g} this network genuinely diverges"
+            + (f" (step {_run_now['diverged_at']})." if _run_now["diverged_at"] is not None else ".")
+            + " Drag the slider left into the 0.15-0.35 band to find the regime the paper is about: "
             "sharp enough to sit ON the wire, stable enough to keep descending."
         ]
     else:
@@ -551,7 +545,7 @@ def wind_intro_md(mo):
 
     Everything above is full-batch gradient descent: deterministic, the paper's chosen setting. Real training adds wind: minibatch noise shakes every step. Does the clamp survive it?
 
-    We fix the learning rate at 0.25 (squarely on the wire) and re-run training at shrinking batch sizes, twelve independent seeds each. If the edge-of-stability mechanism is a knife-edge artifact of determinism, noise should scatter the plateau. If it is an attractor, the trajectories should keep hugging the wire, just with jitter. We report whichever one the measurement shows.
+    We fix the learning rate at 0.25 (squarely on the wire) and re-run training at shrinking batch sizes, an ensemble of independent seeds at each size. Minibatches are drawn with replacement, so even a batch the size of the dataset carries mild resampling wind; smaller batches blow harder. If the edge-of-stability mechanism is a knife-edge artifact of determinism, noise should scatter the plateau. If it is an attractor, the trajectories should keep hugging the wire, just with jitter. We report whichever one the measurement shows.
     """)
     return
 
@@ -565,7 +559,7 @@ def wind_compute(cfg, dataclasses, device, mo, train_minibatch_ensemble):
     _os3.makedirs("/tmp/eos_cache", exist_ok=True)
     WIND_LR = 0.25
     WIND_BATCHES = [40, 20, 10, 5]
-    WIND_SEEDS = 12
+    WIND_SEEDS = 32
     _wind_cfg = dataclasses.replace(cfg, steps=500)
     _wind_key = _hashlib3.sha1(
         repr((_wind_cfg, WIND_LR, tuple(WIND_BATCHES), WIND_SEEDS)).encode()
@@ -609,7 +603,7 @@ def wind_display(
         _r = wind_runs[_bs]
         for _i, _traj in enumerate(_r["runs"]):
             if len(_traj):
-                _lab = f"batch {_bs}" + (" (full)" if _bs == 40 else "") if _i == 0 else None
+                _lab = f"batch {_bs}" + (" (= dataset size)" if _bs == 40 else "") if _i == 0 else None
                 _axT.plot(np.arange(len(_traj)) * 5, np.clip(_traj, 0, _cap),
                           color=_colors[_bs], alpha=0.3, linewidth=0.9, label=_lab)
     _axT.axhline(_wire_w, color=WIRE_COLOR, linewidth=2.4, label=f"the wire: 2/lr = {_wire_w:.0f}")
@@ -619,7 +613,7 @@ def wind_display(
     _axT.set_xlabel("training step")
     _axT.set_ylabel("sharpness")
     _axT.set_ylim(0, _cap * 1.05)
-    _axT.set_title(f"{sum(len(WIND_BATCHES) * [WIND_SEEDS])} noisy trajectories vs the wire (lr = {WIND_LR})")
+    _axT.set_title(f"{len(WIND_BATCHES) * WIND_SEEDS} noisy trajectories vs the wire (lr = {WIND_LR})")
     _axT.legend(fontsize=8, loc="upper left")
 
     _bss = list(WIND_BATCHES)
@@ -629,7 +623,7 @@ def wind_display(
         _axC.annotate(f"{wind_runs[_bs]['n_rode']}/{wind_runs[_bs]['n_seeds']}",
                       xy=(_bs, _fr), xytext=(0, 8), textcoords="offset points",
                       ha="center", fontsize=8)
-    _axC.set_xlabel("batch size (40 = full batch; smaller = windier)")
+    _axC.set_xlabel("batch size, drawn with replacement (40 = dataset size; smaller = windier)")
     _axC.set_ylabel("fraction of seeds that RODE the wire\n(stayed bounded, did not diverge)")
     _axC.set_title("does the clamp survive the wind?")
     _axC.set_ylim(-0.05, 1.12)
@@ -697,9 +691,9 @@ def guardrails(mo):
     ### What this does and does not show
 
     - The MLP, task, and training loop are synthetic and small on purpose (fp32, fixed seeds, explicit divergence guards). The paper demonstrates the phenomenon across real architectures and datasets; this notebook demonstrates the *mechanism* at a scale you can interrogate live.
-    - Sharpness here is the top Hessian eigenvalue estimated by 20 rounds of Hessian-vector-product power iteration, the same estimator validated against exact ground truth on the quadratic bowl in Act 1. Deflated iteration gives the faint second and third eigenvalues; they are noisier than the top one.
+    - Sharpness here is estimated by 20 rounds of Hessian-vector-product power iteration, the same estimator validated against exact ground truth on the quadratic bowl in Act 1. Strictly, power iteration converges to the largest-magnitude eigenvalue rather than the largest; on every run plotted here the reported value is positive throughout (visible in the curves, and consistent with the bowl check where the eigenvalue is known and positive), so the two coincide. Deflated iteration gives the faint second and third eigenvalues; they are noisier than the top one.
     - The learning-rate sweep is precomputed on a fixed grid and the slider snaps to it, so dragging never trains anything live; the bowl in Act 1 IS computed live because it costs sixty multiplications.
-    - The wind extension reports a measured tendency at one model scale, twelve seeds per batch size. It is an honest first measurement of a question the paper scopes out, not a settled answer to it.
+    - The wind extension reports a measured tendency at one model scale, thirty-two seeds per batch size. It is a first measurement of a question the paper scopes out, not a settled answer to it.
 
     ### Methods and credits
 
