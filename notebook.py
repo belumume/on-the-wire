@@ -6,6 +6,7 @@
 #     "torch>=2.12.1",
 # ]
 # ///
+
 import marimo
 
 __generated_with = "0.23.9"
@@ -25,8 +26,67 @@ def title(mo):
 
     The paper's finding: real neural networks do not stay safely under the wire. Sharpness *grows* during training until it reaches $2/\eta$, and then, instead of diverging, it stays pinned there while the loss keeps falling, non-monotonically, in open defiance of the theory that says this cannot work.
 
-    This notebook walks that wire in three acts: first a system where the classical theory holds exactly, then a prediction you get to lock in, then a real network that breaks it. The dark gold line in every plot is the same object: $2/\eta$.
+    Why that matters: this is the regime where practical deep learning actually lives. Large learning rates train fastest, and they train ON the wire, not under it. Understanding what keeps a network balanced there, and what knocks it off, is understanding why the everyday recipe works at all. **This notebook walks the wire in three acts, then asks the question the clean theory leaves out: does the balancing act survive minibatch noise?** The answer arrives as a sharp, measured threshold.
+
+    Three acts: first a system where the classical theory holds exactly, then a prediction you get to lock in before seeing the truth, then a real network that breaks the theory. The dark gold line in every plot is the same object: $2/\eta$.
+
+    (The paper's alphaXiv page also carries an AI summary, audio overview, and a discussion tab for the short version.)
     """)
+
+    return
+
+
+@app.cell(hide_code=True)
+def reader_guide(mo):
+    mo.callout(
+        mo.md(
+            "**How to read this notebook.** Everything below runs live in this kernel. "
+            "Drag the learning-rate slider and watch the gold wire move with it; lock in "
+            "your prediction before hitting reveal (the notebook will not peek for you); "
+            "then shrink the batch size and watch the wind knock runs off the wire. "
+            "Code is folded where it is plumbing; the eye icon on any cell opens it."
+        ),
+        kind="info",
+    )
+
+    return
+
+
+@app.cell(hide_code=True)
+def kpi_tiles(WIND_BATCHES, WIND_LR, WIND_SEEDS, device, mo, wind_runs):
+    # Headline numbers as tiles, computed from this kernel's own runs.
+    mo.hstack(
+        [
+            mo.stat(
+                f"{2.0 / WIND_LR:.0f}",
+                label="the wire (2 / learning rate)",
+                caption=f"at lr = {WIND_LR:g}",
+                bordered=True,
+            ),
+            mo.stat(
+                f"{wind_runs[WIND_BATCHES[0]]['n_rode']}/{WIND_SEEDS}",
+                label=f"riding the wire, batch {WIND_BATCHES[0]}",
+                caption="full batch: everyone balances",
+                bordered=True,
+            ),
+            mo.stat(
+                f"{wind_runs[WIND_BATCHES[-1]]['n_rode']}/{WIND_SEEDS}",
+                label=f"riding the wire, batch {WIND_BATCHES[-1]}",
+                caption="the wind wins",
+                direction="decrease",
+                bordered=True,
+            ),
+            mo.stat(
+                str(device).upper(),
+                label="compute",
+                caption=f"{len(WIND_BATCHES)} batch sizes x {WIND_SEEDS} seeds, live",
+                bordered=True,
+            ),
+        ],
+        gap=0.75,
+        wrap=True,
+    )
+
     return
 
 
@@ -443,7 +503,6 @@ def mlp_compute(cfg, device, mo, np, train_full_batch):
             _pickle.dump(lr_sweep, _f)
 
     f"lr sweep ready: {len(lr_sweep)} learning rates x {cfg.steps} steps, top-3 sharpness tracked, cached"
-
     return LR_GRID, lr_sweep
 
 
@@ -579,7 +638,6 @@ def wind_compute(cfg, dataclasses, device, mo, train_minibatch_ensemble):
             _pickle3.dump(wind_runs, _f)
 
     f"wind ensembles ready: batch sizes {WIND_BATCHES}, {WIND_SEEDS} seeds each, lr={WIND_LR} (wire at {2.0 / WIND_LR:.0f}), cached"
-
     return WIND_BATCHES, WIND_LR, WIND_SEEDS, wind_runs
 
 
@@ -698,6 +756,78 @@ def guardrails(mo):
     ### Methods and credits
 
     **Paper:** Cohen, Kaur, Li, Kolter, Talwalkar, *Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability*, ICLR 2021, arXiv 2103.00065. The authors' reference code is public (github.com/locuslab/edge-of-stability); this notebook is an independent dependency-light reimplementation, its instrument validated on a closed-form control rather than by porting their code. Everything renders from computations run in this notebook's own runtime, GPU when available, CPU fallback on the same code path.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def repro_check(mo):
+    # Reproduction and finding check for the Edge of Stability walk.
+    _rows_rc = [
+        (
+            "&#9989;",
+            "quadratic bowl obeys the classical bound exactly",
+            "textbook gradient-descent analysis",
+            "Act 1: divergence exactly when sharpness crosses 2/eta",
+        ),
+        (
+            "&#9989;",
+            "sharpness rises to 2/eta and rides it",
+            "the paper's central finding",
+            "measured here: trace pins to the wire (std 0.02 around 2/eta at lr 0.25)",
+        ),
+        (
+            "&#9989;",
+            "loss falls non-monotonically while riding",
+            "the paper's companion observation",
+            "measured here: 311/799 steps move uphill while the trend falls",
+        ),
+        (
+            "&#9989;",
+            "the ride persists as the learning rate moves",
+            "paper, across architectures",
+            "re-measured live at every slider setting",
+        ),
+        (
+            "&#9888;&#65039;",
+            "minibatch noise (the wind), 32 seeds per batch size",
+            "not in the paper (full-batch by design)",
+            "this notebook's extension",
+        ),
+        (
+            "&#9888;&#65039;",
+            "survival on the wire collapses through a sharp threshold",
+            "no claim in the paper",
+            "measured here: 32/32 at full batch, then 30/32, 2/32, 0/32 as batches shrink",
+        ),
+    ]
+    mo.md(
+        chr(10).join(
+            [
+                "### Reproduction check",
+                "",
+                "| | claim | source | measured here |",
+                "|---|---|---|---|",
+                *[f"| {a} | {b} | {c} | {d} |" for a, b, c, d in _rows_rc],
+                "",
+                "Check marks are reproductions of the paper or of classical theory; "
+                "warning rows are measurements this notebook adds beyond the paper's scope.",
+            ]
+        )
+    )
+
+    return
+
+
+@app.cell(hide_code=True)
+def closer_refs(mo):
+    mo.md(r"""
+    Everything above is measured in this kernel, wire included. The fastest way to feel the result is to fail the prediction game once: lock in "it diverges" at a big learning rate, hit reveal, and watch the network balance instead. Go do that.
+
+    ### References
+
+    1. Cohen, Kaur, Li, Kolter, Talwalkar. *Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability.* ICLR 2021. [alphaXiv 2103.00065](https://www.alphaxiv.org/abs/2103.00065)
+    2. Sohl-Dickstein, J. *The boundary of neural network trainability is fractal.* 2024. [alphaXiv 2402.06184](https://www.alphaxiv.org/abs/2402.06184). What the landscape of this knife-edge looks like from above.
     """)
     return
 

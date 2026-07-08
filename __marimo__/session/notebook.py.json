@@ -6,20 +6,46 @@
   },
   "cells": [
     {
-      "id": "Hbol",
-      "code_hash": "39648e8a6d7faba8fd67e90b7b8b22ab",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeHbol",
+      "code_hash": "0cbe49822987ee8005a56b0410868808",
       "outputs": [
         {
           "type": "data",
           "data": {
-            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"on-the-wire\">On the Wire</h1>\n<span class=\"paragraph\"><strong>Paper:</strong> <a href=\"https://www.alphaxiv.org/abs/2103.00065\" rel=\"noopener noreferrer\" target=\"_blank\">Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability</a> (Cohen, Kaur, Li, Kolter, Talwalkar, ICLR 2021, arXiv 2103.00065)</span>\n<span class=\"paragraph\">Classical optimization theory draws a hard line for gradient descent: if the sharpness of the loss surface (the top eigenvalue of the Hessian) exceeds <marimo-tex class=\"arithmatex\">||(2/\\eta||)</marimo-tex> for learning rate <marimo-tex class=\"arithmatex\">||(\\eta||)</marimo-tex>, the iterates overshoot and diverge. Below the line, safe. Above the line, explosion. The line is the wire.</span>\n<span class=\"paragraph\">The paper's finding: real neural networks do not stay safely under the wire. Sharpness <em>grows</em> during training until it reaches <marimo-tex class=\"arithmatex\">||(2/\\eta||)</marimo-tex>, and then, instead of diverging, it stays pinned there while the loss keeps falling, non-monotonically, in open defiance of the theory that says this cannot work.</span>\n<span class=\"paragraph\">This notebook walks that wire in three acts: first a system where the classical theory holds exactly, then a prediction you get to lock in, then a real network that breaks it. The dark gold line in every plot is the same object: <marimo-tex class=\"arithmatex\">||(2/\\eta||)</marimo-tex>.</span></span>"
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"on-the-wire\">On the Wire</h1>\n<span class=\"paragraph\"><strong>Paper:</strong> <a href=\"https://www.alphaxiv.org/abs/2103.00065\" rel=\"noopener noreferrer\" target=\"_blank\">Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability</a> (Cohen, Kaur, Li, Kolter, Talwalkar, ICLR 2021, arXiv 2103.00065)</span>\n<span class=\"paragraph\">Classical optimization theory draws a hard line for gradient descent: if the sharpness of the loss surface (the top eigenvalue of the Hessian) exceeds <marimo-tex class=\"arithmatex\">||(2/\\eta||)</marimo-tex> for learning rate <marimo-tex class=\"arithmatex\">||(\\eta||)</marimo-tex>, the iterates overshoot and diverge. Below the line, safe. Above the line, explosion. The line is the wire.</span>\n<span class=\"paragraph\">The paper's finding: real neural networks do not stay safely under the wire. Sharpness <em>grows</em> during training until it reaches <marimo-tex class=\"arithmatex\">||(2/\\eta||)</marimo-tex>, and then, instead of diverging, it stays pinned there while the loss keeps falling, non-monotonically, in open defiance of the theory that says this cannot work.</span>\n<span class=\"paragraph\">Why that matters: this is the regime where practical deep learning actually lives. Large learning rates train fastest, and they train ON the wire, not under it. Understanding what keeps a network balanced there, and what knocks it off, is understanding why the everyday recipe works at all. <strong>This notebook walks the wire in three acts, then asks the question the clean theory leaves out: does the balancing act survive minibatch noise?</strong> The answer arrives as a sharp, measured threshold.</span>\n<span class=\"paragraph\">Three acts: first a system where the classical theory holds exactly, then a prediction you get to lock in before seeing the truth, then a real network that breaks the theory. The dark gold line in every plot is the same object: <marimo-tex class=\"arithmatex\">||(2/\\eta||)</marimo-tex>.</span>\n<span class=\"paragraph\">(The paper's alphaXiv page also carries an AI summary, audio overview, and a discussion tab for the short version.)</span></span>"
           }
         }
       ],
       "console": []
     },
     {
-      "id": "MJUe",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeMJUe",
+      "code_hash": "d354a745f362731d31190bf2d4c66107",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-callout-output data-html='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003e&#92;u003cstrong&#92;u003eHow to read this notebook.&#92;u003c/strong&#92;u003e Everything below runs live in this kernel. Drag the learning-rate slider and watch the gold wire move with it; lock in your prediction before hitting reveal (the notebook will not peek for you); then shrink the batch size and watch the wind knock runs off the wire. Code is folded where it is plumbing; the eye icon on any cell opens it.&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-kind='&quot;info&quot;'></marimo-callout-output>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceevblA",
+      "code_hash": "0b2736b37fd46ab79e9d125035e2b689",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<div style='display: flex;flex: 1;flex-direction: row;justify-content: space-between;align-items: normal;flex-wrap: wrap;gap: 0.75rem'><marimo-stat data-value='&quot;8&quot;' data-label='&quot;the wire (2 / learning rate)&quot;' data-caption='&quot;at lr = 0.25&quot;' data-bordered='true' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;32/32&quot;' data-label='&quot;riding the wire, batch 40&quot;' data-caption='&quot;full batch: everyone balances&quot;' data-bordered='true' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;0/32&quot;' data-label='&quot;riding the wire, batch 5&quot;' data-caption='&quot;the wind wins&quot;' data-direction='&quot;decrease&quot;' data-bordered='true' data-target_direction='&quot;increase&quot;'></marimo-stat><marimo-stat data-value='&quot;CUDA&quot;' data-label='&quot;compute&quot;' data-caption='&quot;4 batch sizes x 32 seeds, live&quot;' data-bordered='true' data-target_direction='&quot;increase&quot;'></marimo-stat></div>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceebkHC",
       "code_hash": "1d0db38904205bec4d6f6f6a1f6cec3e",
       "outputs": [
         {
@@ -32,7 +58,7 @@
       "console": []
     },
     {
-      "id": "vblA",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceelEQa",
       "code_hash": "76bf6d30b883208b4257761be002e542",
       "outputs": [
         {
@@ -45,7 +71,7 @@
       "console": []
     },
     {
-      "id": "bkHC",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceePKri",
       "code_hash": "7ddce6018df1ac9031ea063fa762d6e7",
       "outputs": [
         {
@@ -58,7 +84,7 @@
       "console": []
     },
     {
-      "id": "lEQa",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeXref",
       "code_hash": "6ba3bb411c7c3c914420b8d0fe9bdd18",
       "outputs": [
         {
@@ -71,7 +97,7 @@
       "console": []
     },
     {
-      "id": "PKri",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeSFPL",
       "code_hash": "08591aaee782c5084517882f1159d4ab",
       "outputs": [
         {
@@ -84,20 +110,20 @@
       "console": []
     },
     {
-      "id": "Xref",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeBYtC",
       "code_hash": "3922f53a6875144d2fdaa5b7dda5a547",
       "outputs": [
         {
           "type": "data",
           "data": {
-            "text/html": "<marimo-ui-element object-id='Xref-0' random-id='a8c69700-d8c9-5a2d-9bc0-499389cf2e7c'><marimo-slider data-initial-value='0.3' data-label='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003ebowl learning rate (curvature c = 5, so the wire sits at 2/c = 0.4)&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-start='0.05' data-stop='0.6' data-step='0.01' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='true' data-include-input='false' data-full-width='true'></marimo-slider></marimo-ui-element>"
+            "text/html": "<marimo-ui-element object-id='3e428146-7ee0-4338-8dc9-c493b4652ceeBYtC-0' random-id='9016cbda-7bbd-ccd9-5c83-eb4d011f2adc'><marimo-slider data-initial-value='0.3' data-label='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003ebowl learning rate (curvature c = 5, so the wire sits at 2/c = 0.4)&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-start='0.05' data-stop='0.6' data-step='0.01' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='true' data-include-input='false' data-full-width='true'></marimo-slider></marimo-ui-element>"
           }
         }
       ],
       "console": []
     },
     {
-      "id": "SFPL",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeRGSE",
       "code_hash": "bb4f0bd822b381247740bb2fbca224e8",
       "outputs": [
         {
@@ -110,7 +136,7 @@
       "console": []
     },
     {
-      "id": "BYtC",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeKclp",
       "code_hash": "03354619683e48fa6bdbc16f98c6eaaf",
       "outputs": [
         {
@@ -123,20 +149,20 @@
       "console": []
     },
     {
-      "id": "RGSE",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeemfo",
       "code_hash": "4bd96ba1948770635cbb7a651583674b",
       "outputs": [
         {
           "type": "data",
           "data": {
-            "text/html": "<marimo-ui-element object-id='RGSE-0' random-id='adb00100-95b6-de75-3bb6-c5b2adb548d1'><marimo-radio data-initial-value='null' data-label='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eyour prediction (locked in before the reveal)&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-options='[&quot;It diverges, like the bowl above the wire&quot;,&quot;Sharpness stays safely below the wire and it converges&quot;,&quot;Something the bowl cannot do&quot;]' data-inline='false' data-disabled='false'></marimo-radio></marimo-ui-element>"
+            "text/html": "<marimo-ui-element object-id='3e428146-7ee0-4338-8dc9-c493b4652ceeemfo-0' random-id='bc5519e3-df0a-c2f6-1dd9-ed989d3afa1a'><marimo-radio data-initial-value='null' data-label='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eyour prediction (locked in before the reveal)&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-options='[&quot;It diverges, like the bowl above the wire&quot;,&quot;Sharpness stays safely below the wire and it converges&quot;,&quot;Something the bowl cannot do&quot;]' data-inline='false' data-disabled='false'></marimo-radio></marimo-ui-element>"
           }
         }
       ],
       "console": []
     },
     {
-      "id": "Kclp",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeHstk",
       "code_hash": "b424e4b315139de64ea17ebbe441ee02",
       "outputs": [
         {
@@ -149,20 +175,20 @@
       "console": []
     },
     {
-      "id": "emfo",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceenWHF",
       "code_hash": "2369e926bda4f60b0cd29199c6e3b49f",
       "outputs": [
         {
           "type": "data",
           "data": {
-            "text/html": "<marimo-ui-element object-id='emfo-0' random-id='bb8693bf-9a1e-867d-88fb-c98888be6a4e'><marimo-slider data-initial-value='0.24' data-label='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eAct 3: MLP learning rate (drag from far below the wire to past it)&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-start='0.02' data-stop='0.4' data-step='0.02' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='true' data-include-input='false' data-full-width='true'></marimo-slider></marimo-ui-element>"
+            "text/html": "<marimo-ui-element object-id='3e428146-7ee0-4338-8dc9-c493b4652ceenWHF-0' random-id='1fd1a7bc-c599-26b9-de72-cdf430afa29b'><marimo-slider data-initial-value='0.24' data-label='&quot;&#92;u003cspan class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&#92;u003e&#92;u003cspan class=&#92;&quot;paragraph&#92;&quot;&#92;u003eAct 3: MLP learning rate (drag from far below the wire to past it)&#92;u003c/span&#92;u003e&#92;u003c/span&#92;u003e&quot;' data-start='0.02' data-stop='0.4' data-step='0.02' data-steps='[]' data-debounce='false' data-disabled='false' data-orientation='&quot;horizontal&quot;' data-show-value='true' data-include-input='false' data-full-width='true'></marimo-slider></marimo-ui-element>"
           }
         }
       ],
       "console": []
     },
     {
-      "id": "Hstk",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeiLit",
       "code_hash": "0d8b708f0a358953b4c4c1bcc6ba89ac",
       "outputs": [
         {
@@ -175,7 +201,7 @@
       "console": []
     },
     {
-      "id": "nWHF",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeZHCJ",
       "code_hash": "d79e631f62b1728d8077849346ddfa9a",
       "outputs": [
         {
@@ -188,7 +214,7 @@
       "console": []
     },
     {
-      "id": "iLit",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeROlb",
       "code_hash": "f60e39cf24dbdf6a09686e6d4aff002a",
       "outputs": [
         {
@@ -201,7 +227,7 @@
       "console": []
     },
     {
-      "id": "ZHCJ",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeqnkX",
       "code_hash": "672def42f934bbd3688b5f2e4fd2c232",
       "outputs": [
         {
@@ -211,17 +237,10 @@
           }
         }
       ],
-      "console": [
-        {
-          "type": "stream",
-          "name": "stderr",
-          "text": "[I 260708 09:32:16 handlers:31] Interrupt request received\n",
-          "mimetype": "text/plain"
-        }
-      ]
+      "console": []
     },
     {
-      "id": "ROlb",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeTqIu",
       "code_hash": "09ce36c4741d0e9247b03a1395885c6e",
       "outputs": [
         {
@@ -234,7 +253,7 @@
       "console": []
     },
     {
-      "id": "qnkX",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeVxnm",
       "code_hash": "c0bfeb13c12034c74c5973fe60d28804",
       "outputs": [
         {
@@ -247,13 +266,39 @@
       "console": []
     },
     {
-      "id": "TqIu",
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeDnEU",
       "code_hash": "9fdc1099d8b11330272c96b0106c29c4",
       "outputs": [
         {
           "type": "data",
           "data": {
             "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h3 id=\"what-this-does-and-does-not-show\">What this does and does not show</h3>\n<ul>\n<li>The MLP, task, and training loop are synthetic and small on purpose (fp32, fixed seeds, explicit divergence guards). The paper demonstrates the phenomenon across real architectures and datasets; this notebook demonstrates the <em>mechanism</em> at a scale you can interrogate live.</li>\n<li>Sharpness here is estimated by 20 rounds of Hessian-vector-product power iteration, the same estimator validated against exact ground truth on the quadratic bowl in Act 1. Strictly, power iteration converges to the largest-magnitude eigenvalue rather than the largest; on every run plotted here the reported value is positive throughout (visible in the curves, and consistent with the bowl check where the eigenvalue is known and positive), so the two coincide. Deflated iteration gives the faint second and third eigenvalues; they are noisier than the top one.</li>\n<li>The learning-rate sweep is precomputed on a fixed grid and the slider snaps to it, so dragging never trains anything live; the bowl in Act 1 IS computed live because it costs sixty multiplications.</li>\n<li>The wind extension reports a measured tendency at one model scale, thirty-two seeds per batch size. It is a first measurement of a question the paper scopes out, not a settled answer to it.</li>\n</ul>\n<h3 id=\"methods-and-credits\">Methods and credits</h3>\n<span class=\"paragraph\"><strong>Paper:</strong> Cohen, Kaur, Li, Kolter, Talwalkar, <em>Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability</em>, ICLR 2021, arXiv 2103.00065. The authors' reference code is public (github.com/locuslab/edge-of-stability); this notebook is an independent dependency-light reimplementation, its instrument validated on a closed-form control rather than by porting their code. Everything renders from computations run in this notebook's own runtime, GPU when available, CPU fallback on the same code path.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeulZA",
+      "code_hash": "11a6fe32cd2c0aed2cd2163d7d2608d4",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h3 id=\"reproduction-check\">Reproduction check</h3>\n<table>\n<thead>\n<tr>\n<th></th>\n<th>claim</th>\n<th>source</th>\n<th>measured here</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>&#9989;</td>\n<td>quadratic bowl obeys the classical bound exactly</td>\n<td>textbook gradient-descent analysis</td>\n<td>Act 1: divergence exactly when sharpness crosses 2/eta</td>\n</tr>\n<tr>\n<td>&#9989;</td>\n<td>sharpness rises to 2/eta and rides it</td>\n<td>the paper's central finding</td>\n<td>measured here: trace pins to the wire (std 0.02 around 2/eta at lr 0.25)</td>\n</tr>\n<tr>\n<td>&#9989;</td>\n<td>loss falls non-monotonically while riding</td>\n<td>the paper's companion observation</td>\n<td>measured here: 311/799 steps move uphill while the trend falls</td>\n</tr>\n<tr>\n<td>&#9989;</td>\n<td>the ride persists as the learning rate moves</td>\n<td>paper, across architectures</td>\n<td>re-measured live at every slider setting</td>\n</tr>\n<tr>\n<td>&#9888;&#65039;</td>\n<td>minibatch noise (the wind), 32 seeds per batch size</td>\n<td>not in the paper (full-batch by design)</td>\n<td>this notebook's extension</td>\n</tr>\n<tr>\n<td>&#9888;&#65039;</td>\n<td>survival on the wire collapses through a sharp threshold</td>\n<td>no claim in the paper</td>\n<td>measured here: 32/32 at full batch, then 30/32, 2/32, 0/32 as batches shrink</td>\n</tr>\n</tbody>\n</table>\n<span class=\"paragraph\">Check marks are reproductions of the paper or of classical theory; warning rows are measurements this notebook adds beyond the paper's scope.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "3e428146-7ee0-4338-8dc9-c493b4652ceeecfG",
+      "code_hash": "812904136ac8e7f2d80fabbab4870da0",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\">Everything above is measured in this kernel, wire included. The fastest way to feel the result is to fail the prediction game once: lock in \"it diverges\" at a big learning rate, hit reveal, and watch the network balance instead. Go do that.</span>\n<h3 id=\"references\">References</h3>\n<ol>\n<li>Cohen, Kaur, Li, Kolter, Talwalkar. <em>Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability.</em> ICLR 2021. <a href=\"https://www.alphaxiv.org/abs/2103.00065\" rel=\"noopener noreferrer\" target=\"_blank\">alphaXiv 2103.00065</a></li>\n<li>Sohl-Dickstein, J. <em>The boundary of neural network trainability is fractal.</em> 2024. <a href=\"https://www.alphaxiv.org/abs/2402.06184\" rel=\"noopener noreferrer\" target=\"_blank\">alphaXiv 2402.06184</a>. What the landscape of this knife-edge looks like from above.</li>\n</ol></span>"
           }
         }
       ],
