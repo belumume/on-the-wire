@@ -290,7 +290,7 @@ def engine(dataclasses, np, torch):
         cfg: Config,
         lr: float,
         batch_size: int,
-        n_seeds: int = 12,
+        n_seeds: int = 32,
         device: str | torch.device | None = None,
     ):
         """Extension "Wind on the Wire": n_seeds independent minibatch runs at a
@@ -630,7 +630,7 @@ def wind_compute(cfg, dataclasses, device, mo, train_minibatch_ensemble):
             wind_runs = _pickle3.load(_f)
     else:
         wind_runs = {}
-        with mo.status.progress_bar(total=len(WIND_BATCHES), title="minibatch ensembles (12 seeds per batch size)") as _bar:
+        with mo.status.progress_bar(total=len(WIND_BATCHES), title="minibatch ensembles (32 seeds per batch size)") as _bar:
             for _bs in WIND_BATCHES:
                 wind_runs[_bs] = train_minibatch_ensemble(_wind_cfg, lr=WIND_LR, batch_size=_bs, n_seeds=WIND_SEEDS, device=device)
                 _bar.update()
@@ -734,7 +734,7 @@ def wind_caption_md(WIND_BATCHES, WIND_LR, mo, wind_runs):
         ]
     _lines2 += [
         "",
-        "One caveat stated plainly: these are 500-step runs of a small MLP, twelve seeds per batch "
+        "One caveat stated plainly: these are 500-step runs of a small MLP, thirty-two seeds per batch "
         f"size, sharpness probed every fifth step, all at the single learning rate {WIND_LR}. The "
         "threshold is real in this setup; its exact location would move with model size, step budget, "
         "and learning rate, and would reward a bigger instrument.",
