@@ -824,6 +824,24 @@ def closer_refs(mo):
     mo.md(r"""
     Everything above is measured in this kernel, wire included. The fastest way to feel the result is to fail the prediction game once: lock in "it diverges" at a big learning rate, hit reveal, and watch the network balance instead. Go do that.
 
+
+    ### Three edges of stability
+
+    This notebook is one of three, each built on a different paper, each a view of
+    the same edge.
+
+    - **On the Wire** (you are here). Training climbs to the edge of stability,
+      pins at 2/eta, and rides it while the loss falls anyway, until noise blows
+      it off.
+    - **[The Coastline That Never Smooths](https://molab.marimo.io/notebooks/nb_SZ6ifRSGVy1kQY8b5yXrax)**. Seen from above, that edge is
+      a fractal coastline in hyperparameter space, and every pixel of it is a real
+      training run.
+    - **[The Scale DyT Forgot](https://molab.marimo.io/notebooks/nb_jNm948dpXRCvrK9demdeaf)**. Replace LayerNorm with a frozen learned
+      scalar and you pin where the edge sits relative to your input scale. Move the
+      scale, and the network falls off an edge it can no longer feel.
+
+    The ride, the map, and the calibration. One edge, three ways to fall off it.
+
     ### References
 
     1. Cohen, Kaur, Li, Kolter, Talwalkar. *Gradient Descent on Neural Networks Typically Occurs at the Edge of Stability.* ICLR 2021. [alphaXiv 2103.00065](https://www.alphaxiv.org/abs/2103.00065)
